@@ -17,7 +17,7 @@ var githubRepos = [
 		{
 			"repoName" : "catalog-api-toolchain-demo-23fev",
 			"repoUrl" : "https://github.com/jauninb/catalog-api-toolchain-demo-23fev.git",
-			"revisionUrl" : "https://github.com/jauninb/catalog-api-toolchain-demo-23fev/commit/6f48816a5dae24d816c7e26826c5924941991133",
+			"revisionUrl" : "https://github.com/jauninb/catalog-api-toolchain-demo-23fev/commit/a01c48de2c8341824fa0eb5175de7e100a136ade",
 			"enableIssue" : false
 		},
 		{
@@ -35,7 +35,7 @@ var githubRepos = [
 ];
 
 // github repo used for deployableMapping event
-var usedRepoGithubIndex = 2;
+var usedRepoGithubIndex = 0;
 
 async.auto({
 	// Retrieve authenticationToken
@@ -67,7 +67,7 @@ async.auto({
 			'Accept' : 'application/json'
     	};
 
-    	var formData = {
+    	var body = {
 			"name" : "TraceabilityMicroToolchain" + results.toolchainIndex,
 			"description" : "A toolchain micro based to test traceability",
 			"public" : true,
@@ -80,7 +80,7 @@ async.auto({
     		url : otcApiUrl + "/toolchains",
     		headers : headers,
     		method: "POST",
-    		form: formData,
+    		body: body,
     		json: true
     	}, function(err, result, body) {
     		if (err) {
@@ -99,23 +99,25 @@ async.auto({
     	};
 
     	var createServiceInstance = function(repoName, repoUrl, enableIssue, callbackCreate) {
-    		var formData = {
+    		var body = {
     	        "service_id": "githubpublic",
     	        "parameters": {
     				"repo_name": repoName,
     				"repo_url": repoUrl,
     				"type":"link",
     				//"type":"new",
+    				"enable_traceability": true,
     				"has_issues":enableIssue
     			},
     	        "organization_guid": organization_guid
     	    };
+    		
         	
         	request({
         		url : otcApiUrl + "/service_instances",
         		headers : headers,
         		method: "POST",
-        		form: formData,
+        		body: body,
         		json: true
         	}, function(err, result, body) {
         		if (err) {
@@ -146,14 +148,14 @@ async.auto({
     	locationTokens.pop();
     	var toolchainId = locationTokens.pop();
     	
-    	var formData = {};
+    	var body = {};
 
     	var bindInstance = function(serviceInstanceId, callbackBindInstance) {
         	request({
         		url : otcApiUrl + "/service_instances/" + serviceInstanceId + "/toolchains/" + toolchainId,
         		headers : headers,
         		method: "PUT",
-        		form: formData,
+        		body: body,
         		json: true
         	}, function(err, result, body) {
         		if (err) {
@@ -187,7 +189,7 @@ async.auto({
 
     	var toolchainId = results.bindGithubToToolchain;
     	    	
-    	var formData = {
+    	var body = {
 		      "deployable": {
 		          "organization_guid": organization_guid,
 		          "space_guid": "5f9f2e5f-610c-4013-b34c-84c6bf4ccf30",
@@ -215,18 +217,16 @@ async.auto({
 			        }
 			      }],
 			      "env": {
-			         "label": "Stagging_Micro"
+			         "label": "Staging_Micro" + (new Date().getTime()) 
 			      }
 		        }
 		  };
-    	
-    	console.log(JSON.stringify(formData));
-    	
+    	    	
     	request({
     		url : otcApiUrl + "/toolchain_deployable_mappings",
     		headers : headers,
     		method: "POST",
-    		form: formData,
+    		body: body,
     		json: true
     	}, function(err, result, body) {
     		if (err) {
