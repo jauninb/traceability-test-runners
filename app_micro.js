@@ -18,24 +18,31 @@ var githubRepos = [
 			"repoName" : "catalog-api-toolchain-demo-23fev",
 			"repoUrl" : "https://github.com/jauninb/catalog-api-toolchain-demo-23fev.git",
 			"revisionUrl" : "https://github.com/jauninb/catalog-api-toolchain-demo-23fev/commit/a01c48de2c8341824fa0eb5175de7e100a136ade",
+			"enableTraceability": true,
 			"enableIssue" : false
 		},
 		{
 			"repoName" : "orders-api-toolchain-demo-23fev",
 			"repoUrl" : "https://github.com/jauninb/orders-api-toolchain-demo-23fev.git",
 			"revisionUrl" : "https://github.com/jauninb/orders-api-toolchain-demo-23fev/commit/614ee6c0e7c0eefcc438afc8e6fca25ef8b291ba",
+			"enableTraceability": false,
 			"enableIssue" : false
 		},
 		{
 			"repoName" : "ui-toolchain-demo-23fev",
 			"repoUrl" : "https://github.com/jauninb/ui-toolchain-demo-23fev.git",
 			"revisionUrl" : "https://github.com/jauninb/ui-toolchain-demo-23fev/commit/4c20e22d50648d885a39597b9f6fa8b485a67fe7",
+			"enableTraceability": true,
 			"enableIssue" : true
 		}
 ];
 
 // github repo used for deployableMapping event
 var usedRepoGithubIndex = 0;
+
+var headers = {
+	'Accept' : 'application/json'		
+};
 
 async.auto({
 	// Retrieve authenticationToken
@@ -44,10 +51,8 @@ async.auto({
 	},
 	// Retrieve new toolchain index
 	toolchainIndex: ["authenticationToken", function(results, callback) {
-    	var headers = {
-			'Authorization' : results.authenticationToken,
-			'Accept' : 'application/json'
-    	};
+    	headers['Authorization'] = results.authenticationToken;
+
     	request({
     		url : otcApiUrl + "/toolchains ",
     		headers : headers,
@@ -62,10 +67,6 @@ async.auto({
 	}],
 	// Create a new toolchain
 	toolchainLocation: ["toolchainIndex", function(results, callback) {
-    	var headers = {
-			'Authorization' : results.authenticationToken,
-			'Accept' : 'application/json'
-    	};
 
     	var body = {
 			"name" : "TraceabilityMicroToolchain" + results.toolchainIndex,
@@ -93,12 +94,8 @@ async.auto({
 	}],
 	// Create a new githubpublic service instances
 	githubpublicInstanceIds: ["toolchainIndex", function(results, callback) {
-    	var headers = {
-			'Authorization' : results.authenticationToken,
-			'Accept' : 'application/json'
-    	};
 
-    	var createServiceInstance = function(repoName, repoUrl, enableIssue, callbackCreate) {
+    	var createServiceInstance = function(repoName, repoUrl, enableIssue, enableTraceability, callbackCreate) {
     		var body = {
     	        "service_id": "githubpublic",
     	        "parameters": {
@@ -106,7 +103,7 @@ async.auto({
     				"repo_url": repoUrl,
     				"type":"link",
     				//"type":"new",
-    				"enable_traceability": true,
+    				"enable_traceability": enableTraceability,
     				"has_issues":enableIssue
     			},
     	        "organization_guid": organization_guid
@@ -131,17 +128,13 @@ async.auto({
         	});		    		
     	};
     	async.parallel(_.map(githubRepos, function(githubRepo) {
-    		return async.apply(createServiceInstance, githubRepo.repoName, githubRepo.repoUrl, githubRepo.enableIssue);
+    		return async.apply(createServiceInstance, githubRepo.repoName, githubRepo.repoUrl, githubRepo.enableIssue, githubRepo.enableTraceability);
     	}), function(err, results) {
     		callback(err, results)
     	});    	
 	}],
 	// Bind the new githubpublic service instance to the toolchain
 	bindGithubToToolchain: ["toolchainLocation", "githubpublicInstanceIds", function(results, callback) {
-    	var headers = {
-			'Authorization' : results.authenticationToken,
-			'Accept' : 'application/json'
-    	};
 
     	var locationTokens = results.toolchainLocation.split(/[\s\/]+/);
     	//console.log(JSON.stringify(locationTokens));
@@ -166,7 +159,6 @@ async.auto({
         		}
         	});		    		
     	};
-
     	
     	async.parallel(_.map(results.githubpublicInstanceIds, function(githubPublicInstanceId) {
     		return async.apply(bindInstance, githubPublicInstanceId);    		
@@ -175,17 +167,69 @@ async.auto({
     	});
     	
 	}],
+	// Ensure every git instance is traceability_enabled
+	enableTraceability: ["bindGithubToToolchain", function(results, callback) {
+    	var enableTraceabilityForInstance = function(serviceInstanceId, callbackEnableTraceabilityInstance) {
+        	request({
+        		url : otcApiUrl + "/service_instances/" + serviceInstanceId,
+        		headers : headers,
+        		method: "GET",
+        		json: true
+        	}, function(err, result, body) {
+        		if (err) {
+        			callbackEnableTraceabilityInstance(err);
+        		} else {
+        			if (body.parameters.enable_traceability) {
+            			console.log("githubpublic service instance " + serviceInstanceId + " is already traceability enabled");
+            			callbackEnableTraceabilityInstance();
+        			} else {
+            			console.log("githubpublic service instance " + serviceInstanceId + " is not yet traceability enabled");
+            			var newServiceInstance = {
+            				"service_id": body.service_id,
+            				"parameters": body.parameters,
+            				"organization_guid": body.organization_guid
+            			};
+
+            			newServiceInstance.parameters.enable_traceability = true;
+            			
+                    	request({
+                    		url : otcApiUrl + "/service_instances/" + serviceInstanceId,
+                    		headers : headers,
+                    		method: "PATCH",
+                    		body: newServiceInstance,
+                    		json: true
+                    	}, function(err, result, body) {
+                    		if (err) {
+                    			callbackEnableTraceabilityInstance(err);
+                    		} else if (result.statusCode == 200) {
+                       			console.log("githubpublic service instance " + serviceInstanceId + " is now traceability enabled");
+                       			callbackEnableTraceabilityInstance();	
+                    		} else {
+                    			console.log("Unexpected statusCode for PATCH:" + result.statusCode + " - " + JSON.stringify(result) + " - " + JSON.stringify(body));
+                    			callbackEnableTraceabilityInstance({"error": result.statusCode});
+                    		}
+                    	});
+        			}
+        		}
+        	});		    		
+    	};
+
+    	// Wait 5 seconds to have a different enablement time
+    	setTimeout(function() {
+        	async.parallel(_.map(results.githubpublicInstanceIds, function(githubPublicInstanceId) {
+        		return async.apply(enableTraceabilityForInstance, githubPublicInstanceId);    		
+        	}), function(err, results) {
+        		callback(err);
+        	});    		
+    	}, 5000);
+	}],	
 	// Wait some time to ensure webhook is properly defined
-	doStuff: ["bindGithubToToolchain", function(results, callback) {
+	doStuff: ["enableTraceability", function(results, callback) {
 		console.log("doing some stuff");
 		setTimeout(callback, 5000);
 	}],
 	// Create a new deployable mapping (simulating the pipeline invocation)
 	createDeployableMapping: ["doStuff", function(results, callback) {
-    	var headers = {
-			'Authorization' : results.authenticationToken,
-			'Accept' : 'application/json'
-    	};
 
     	var toolchainId = results.bindGithubToToolchain;
     	    	
@@ -244,10 +288,6 @@ async.auto({
 	deleteDeployableMapping: ["doOtherStuff", function(results, callback) {
 		
 		if (results.createDeployableMapping) {
-	    	var headers = {
-	    			'Authorization' : results.authenticationToken,
-	    			'Accept' : 'application/json'
-	       	};
 	    	request({
 	    		url : results.createDeployableMapping,
 	    		headers : headers,
@@ -266,10 +306,7 @@ async.auto({
 		}
 	}],
 	unbindGithubpublic: ["deleteDeployableMapping", function(results, callback) {
-    	var headers = {
-    			'Authorization' : results.authenticationToken,
-    			'Accept' : 'application/json'
-       	};
+
     	var toolchainId = results.bindGithubToToolchain;
 
     	var unbindInstance = function(serviceInstanceId, callbackUnbind) {
@@ -296,10 +333,7 @@ async.auto({
     	
 	}],
 	deleteToolchain: ["unbindGithubpublic", function(results, callback) {
-    	var headers = {
-    			'Authorization' : results.authenticationToken,
-    			'Accept' : 'application/json'
-       	};
+
     	request({
     		url : results.toolchainLocation,
     		headers : headers,
@@ -315,10 +349,6 @@ async.auto({
     	});	
 	}],
 	deleteGithubpublic: ["deleteToolchain", function(results, callback) {
-    	var headers = {
-    			'Authorization' : results.authenticationToken,
-    			'Accept' : 'application/json'
-       	};
     	
     	var deleteGithubPublic = function(serviceInstanceId, callbackDelete) {
         	request({
