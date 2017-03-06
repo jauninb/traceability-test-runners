@@ -233,6 +233,8 @@ async.auto({
 
     	var toolchainId = results.bindGithubToToolchain;
     	    	
+    	var now = new Date().getTime();
+    	
     	var body = {
 		      "deployable": {
 		          "organization_guid": organization_guid,
@@ -261,7 +263,10 @@ async.auto({
 			        }
 			      }],
 			      "env": {
-			         "label": "Staging_Micro" + (new Date().getTime()) 
+						"space_name": "prod_" + now,
+						"region_name": "US South",
+						"label": "PROD_" + now,
+						"org_name": "bluemix_ui_load0303t003@mailinator.com"						
 			      }
 		        }
 		  };
