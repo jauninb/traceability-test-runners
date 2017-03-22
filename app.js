@@ -76,13 +76,14 @@ async.auto({
 			'Accept' : 'application/json'
     	};
 
-    	var formData = {
+    	var body = {
 	        "service_id": "githubpublic",
 	        "parameters": {
-				"repo_name": "Traceability", // + results.toolchainIndex,
-				"repo_url":"https://github.com/jauninb/traceability.git",
+				"repo_name": "traceability-local-test", // + results.toolchainIndex,
+				"repo_url":"hhttps://github.com/jauninb/traceability-local-test.git",
 				"type":"link",
 				//"type":"new",
+				"enable_traceability": true,
 				"has_issues":"true"
 			},
 	        "organization_guid": organization_guid
@@ -92,7 +93,7 @@ async.auto({
     		url : otcApiUrl + "/service_instances",
     		headers : headers,
     		method: "POST",
-    		form: formData,
+    		body: body,
     		json: true
     	}, function(err, result, body) {
     		if (err) {
