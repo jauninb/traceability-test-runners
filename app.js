@@ -80,7 +80,7 @@ async.auto({
 	        "service_id": "githubpublic",
 	        "parameters": {
 				"repo_name": "traceability-local-test", // + results.toolchainIndex,
-				"repo_url":"hhttps://github.com/jauninb/traceability-local-test.git",
+				"repo_url":"https://github.com/jauninb/traceability-local-test.git",
 				"type":"link",
 				//"type":"new",
 				"enable_traceability": true,
